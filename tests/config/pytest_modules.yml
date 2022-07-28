@@ -274,13 +274,6 @@ bedtools/subtract:
   - modules/bedtools/subtract/**
   - tests/modules/bedtools/subtract/**
 
-biobambam2/bamcat:
-  - modules/biobambam2/bamcat/**
-  - tests/modules/biobambam2/bamcat/**
-
-biobambam2/fastqtobam:
-  - modules/biobambam2/fastqtobam/**
-  - tests/modules/biobambam2/fastqtobam/**
 biobambam/bammarkduplicates2:
   - modules/biobambam/bammarkduplicates2/**
   - tests/modules/biobambam/bammarkduplicates2/**
@@ -292,6 +285,14 @@ biobambam/bammerge:
 biobambam/bamsormadup:
   - modules/biobambam/bamsormadup/**
   - tests/modules/biobambam/bamsormadup/**
+
+biobambam2/bamcat:
+  - modules/biobambam2/bamcat/**
+  - tests/modules/biobambam2/bamcat/**
+
+biobambam2/fastqtobam:
+  - modules/biobambam2/fastqtobam/**
+  - tests/modules/biobambam2/fastqtobam/**
 
 biscuit/align:
   - modules/biscuit/index/**
@@ -758,12 +759,17 @@ fastqc:
   - modules/fastqc/**
   - tests/modules/fastqc/**
 
-fastqsplit:
-  - modules/fastqsplit/**
-  - tests/modules/fastqsplit/**
 fastqscan:
   - modules/fastqscan/**
   - tests/modules/fastqscan/**
+
+fastqsplit:
+  - modules/fastqsplit/**
+  - tests/modules/fastqsplit/**
+
+fastqsplit_x:
+  - modules/fastqsplit_x/**
+  - tests/modules/fastqsplit_x/**
 
 fasttree:
   - modules/fasttree/**
