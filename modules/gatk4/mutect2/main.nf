@@ -1,36 +1,21 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process GATK4_MUTECT2 {
     tag "$meta.id"
     label 'process_medium'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    conda (params.enable_conda ? "bioconda::gatk4=4.2.0.0" : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/gatk4:4.2.0.0--0"
-    } else {
-        container "quay.io/biocontainers/gatk4:4.2.0.0--0"
-    }
+    conda (params.enable_conda ? "bioconda::gatk4=4.2.6.1" : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/gatk4:4.2.6.1--hdfd78af_0':
+        'quay.io/biocontainers/gatk4:4.2.6.1--hdfd78af_0' }"
 
     input:
-    tuple val(meta) , path(input) , path(input_index) , val(which_norm)
-    val  run_single
-    val  run_pon
-    val  run_mito
-    val  interval_label
+    tuple val(meta), path(input), path(input_index), path(intervals)
     path fasta
-    path fastaidx
+    path fai
     path dict
     path germline_resource
-    path germline_resource_idx
+    path germline_resource_tbi
     path panel_of_normals
-    path panel_of_normals_idx
+    path panel_of_normals_tbi
 
     output:
     tuple val(meta), path("*.vcf.gz")     , emit: vcf
@@ -39,42 +24,51 @@ process GATK4_MUTECT2 {
     tuple val(meta), path("*.f1r2.tar.gz"), optional:true, emit: f1r2
     path "versions.yml"                   , emit: versions
 
+    when:
+    task.ext.when == null || task.ext.when
+
     script:
-    def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
-    def panels_command = ''
-    def normals_command = ''
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def inputs = input.collect{ "--input $it"}.join(" ")
+    def interval_command = intervals ? "--intervals $intervals" : ""
+    def pon_command = panel_of_normals ? "--panel-of-normals $panel_of_normals" : ""
+    def gr_command = germline_resource ? "--germline-resource $germline_resource" : ""
 
-    def inputs_command = '-I ' + input.join( ' -I ')
-
-    if(run_pon) {
-        panels_command = ''
-        normals_command = ''
-
-    } else if(run_single) {
-        panels_command = " --germline-resource $germline_resource --panel-of-normals $panel_of_normals"
-        normals_command = ''
-
-    } else if(run_mito){
-        panels_command = "-L ${interval_label} --mitochondria-mode"
-        normals_command = ''
-
+    def avail_mem = 3
+    if (!task.memory) {
+        log.info '[GATK Mutect2] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'
     } else {
-        panels_command = " --germline-resource $germline_resource --panel-of-normals $panel_of_normals --f1r2-tar-gz ${prefix}.f1r2.tar.gz"
-        normals_command = '-normal ' + which_norm.join( ' -normal ')
+        avail_mem = task.memory.giga
     }
-
     """
-    gatk Mutect2 \\
-        -R ${fasta} \\
-        ${inputs_command} \\
-        ${normals_command} \\
-        ${panels_command} \\
-        -O ${prefix}.vcf.gz \\
-        $options.args
+    gatk --java-options "-Xmx${avail_mem}g" Mutect2 \\
+        $inputs \\
+        --output ${prefix}.vcf.gz \\
+        --reference $fasta \\
+        $pon_command \\
+        $gr_command \\
+        $interval_command \\
+        --tmp-dir . \\
+        $args
 
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
+    "${task.process}":
+        gatk4: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
+    END_VERSIONS
+    """
+
+    stub:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    touch ${prefix}.vcf.gz
+    touch ${prefix}.vcf.gz.tbi
+    touch ${prefix}.vcf.gz.stats
+    touch ${prefix}.f1r2.tar.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        gatk4: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
     END_VERSIONS
     """
 }

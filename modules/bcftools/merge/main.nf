@@ -1,40 +1,46 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process BCFTOOLS_MERGE {
     tag "$meta.id"
     label 'process_medium'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    conda (params.enable_conda ? 'bioconda::bcftools=1.13' : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/bcftools:1.13--h3a49de5_0"
-    } else {
-        container "quay.io/biocontainers/bcftools:1.13--h3a49de5_0"
-    }
+    conda (params.enable_conda ? "bioconda::bcftools=1.15.1" : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/bcftools:1.15.1--h0ea216a_0':
+        'quay.io/biocontainers/bcftools:1.15.1--h0ea216a_0' }"
 
     input:
     tuple val(meta), path(vcfs), path(tbis)
+    path bed
+    path fasta
+    path fasta_fai
 
     output:
-    tuple val(meta), path("*.gz"), emit: vcf
-    path  "versions.yml"         , emit: versions
+    tuple val(meta), path("*.{bcf,vcf}{,.gz}"), emit: merged_variants
+    path "versions.yml"                       , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
-    prefix       = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
+    def args = task.ext.args   ?: ''
+    def prefix   = task.ext.prefix ?: "${meta.id}"
+
+    def regions = bed ? "--regions-file $bed" : ""
+    def extension = args.contains("--output-type b") || args.contains("-Ob") ? "bcf.gz" :
+                    args.contains("--output-type u") || args.contains("-Ou") ? "bcf" :
+                    args.contains("--output-type v") || args.contains("-Ov") ? "vcf" :
+                    "vcf.gz"
+
     """
-    bcftools merge -Oz \\
-        --output ${prefix}.vcf.gz \\
-        $options.args \\
+    bcftools merge \\
+        $regions \\
+        --threads $task.cpus \\
+        --output ${prefix}.${extension} \\
+        $args \\
         *.vcf.gz
+
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(bcftools --version 2>&1 | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
+    "${task.process}":
+        bcftools: \$(bcftools --version 2>&1 | head -n1 | sed 's/^.*bcftools //; s/ .*\$//')
     END_VERSIONS
     """
 }

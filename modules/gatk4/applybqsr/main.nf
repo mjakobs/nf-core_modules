@@ -1,55 +1,50 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process GATK4_APPLYBQSR {
     tag "$meta.id"
     label 'process_low'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    conda (params.enable_conda ? "bioconda::gatk4=4.2.0.0" : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/gatk4:4.2.0.0--0"
-    } else {
-        container "quay.io/biocontainers/gatk4:4.2.0.0--0"
-    }
+    conda (params.enable_conda ? "bioconda::gatk4=4.2.6.1" : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/gatk4:4.2.6.1--hdfd78af_0':
+        'quay.io/biocontainers/gatk4:4.2.6.1--hdfd78af_0' }"
 
     input:
-    tuple val(meta), path(input), path(input_index), path(bqsr_table)
+    tuple val(meta), path(input), path(input_index), path(bqsr_table), path(intervals)
     path  fasta
-    path  fastaidx
+    path  fai
     path  dict
-    path  intervals
 
     output:
-    tuple val(meta), path("*.bam"), emit: bam
-    path "versions.yml"           , emit: versions
+    tuple val(meta), path("*.bam") , emit: bam,  optional: true
+    tuple val(meta), path("*.cram"), emit: cram, optional: true
+    path "versions.yml"            , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
-    def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
-    def interval = intervals ? "-L ${intervals}" : ""
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def interval_command = intervals ? "--intervals $intervals" : ""
+
+    def avail_mem = 3
     if (!task.memory) {
         log.info '[GATK ApplyBQSR] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'
     } else {
         avail_mem = task.memory.giga
     }
     """
-    gatk ApplyBQSR \\
-        -R $fasta \\
-        -I $input \\
+    gatk --java-options "-Xmx${avail_mem}g" ApplyBQSR \\
+        --input $input \\
+        --output ${prefix}.${input.getExtension()} \\
+        --reference $fasta \\
         --bqsr-recal-file $bqsr_table \\
-        $interval \\
+        $interval_command \\
         --tmp-dir . \\
-        -O ${prefix}.bam \\
-        $options.args
+        $args
 
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
+    "${task.process}":
+        gatk4: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
     END_VERSIONS
     """
 }

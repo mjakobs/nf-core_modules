@@ -1,45 +1,48 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process MINIMAP2_ALIGN {
     tag "$meta.id"
     label 'process_medium'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    conda (params.enable_conda ? 'bioconda::minimap2=2.21' : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/minimap2:2.21--h5bf99c6_0"
-    } else {
-        container "quay.io/biocontainers/minimap2:2.21--h5bf99c6_0"
-    }
+    conda (params.enable_conda ? 'bioconda::minimap2=2.21 bioconda::samtools=1.12' : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' :
+        'quay.io/biocontainers/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' }"
 
     input:
     tuple val(meta), path(reads)
     path reference
+    val bam_format
+    val cigar_paf_format
+    val cigar_bam
 
     output:
-    tuple val(meta), path("*.paf"), emit: paf
-    path "versions.yml" , emit: versions
+    tuple val(meta), path("*.paf"), optional: true, emit: paf
+    tuple val(meta), path("*.bam"), optional: true, emit: bam
+    path "versions.yml"           , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
-    def prefix = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
     def input_reads = meta.single_end ? "$reads" : "${reads[0]} ${reads[1]}"
+    def bam_output = bam_format ? "-a | samtools sort | samtools view -@ ${task.cpus} -b -h -o ${prefix}.bam" : "-o ${prefix}.paf"
+    def cigar_paf = cigar_paf_format && !bam_format ? "-c" : ''
+    def set_cigar_bam = cigar_bam && bam_format ? "-L" : ''
     """
     minimap2 \\
-        $options.args \\
+        $args \\
         -t $task.cpus \\
         $reference \\
         $input_reads \\
-        > ${prefix}.paf
+        $cigar_paf \\
+        $set_cigar_bam \\
+        $bam_output
+
 
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(minimap2 --version 2>&1)
+    "${task.process}":
+        minimap2: \$(minimap2 --version 2>&1)
     END_VERSIONS
     """
 }

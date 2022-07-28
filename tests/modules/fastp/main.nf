@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl = 2
 
-include { FASTP } from '../../../modules/fastp/main.nf'  addParams( options: [:] )
+include { FASTP } from '../../../modules/fastp/main.nf'
 
 //
 // Test with single-end data
@@ -24,6 +24,19 @@ workflow test_fastp_paired_end {
     input = [ [ id:'test', single_end:false ], // meta map
               [ file(params.test_data['sarscov2']['illumina']['test_1_fastq_gz'], checkIfExists: true),
                 file(params.test_data['sarscov2']['illumina']['test_2_fastq_gz'], checkIfExists: true) ]
+            ]
+    save_trimmed_fail = false
+    save_merged       = false
+
+    FASTP ( input, save_trimmed_fail, save_merged )
+}
+
+//
+// Test with intereleaved data
+//
+workflow test_fastp_interleaved {
+    input = [ [ id:'test', single_end:true ], // meta map
+              [ file(params.test_data['sarscov2']['illumina']['test_interleaved_fastq_gz'], checkIfExists: true) ]
             ]
     save_trimmed_fail = false
     save_merged       = false

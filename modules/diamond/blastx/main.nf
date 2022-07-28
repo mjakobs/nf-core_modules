@@ -1,35 +1,50 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process DIAMOND_BLASTX {
     tag "$meta.id"
     label 'process_medium'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    // Dimaond is limited to v2.0.9 because there is not a
-    // singularity version higher than this at the current time.
-    conda (params.enable_conda ? "bioconda::diamond=2.0.9" : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container 'https://depot.galaxyproject.org/singularity/diamond:2.0.9--hdcc8f71_0'
-    } else {
-        container "quay.io/biocontainers/diamond:2.0.9--hdcc8f71_0"
-    }
+    conda (params.enable_conda ? "bioconda::diamond=2.0.15" : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/diamond:2.0.15--hb97b32f_0' :
+        'quay.io/biocontainers/diamond:2.0.15--hb97b32f_0' }"
 
     input:
     tuple val(meta), path(fasta)
-    path  db
+    path db
+    val out_ext
+    val blast_columns
 
     output:
-    tuple val(meta), path('*.txt'), emit: txt
-    path "versions.yml"           , emit: versions
+    tuple val(meta), path('*.blast'), optional: true, emit: blast
+    tuple val(meta), path('*.xml')  , optional: true, emit: xml
+    tuple val(meta), path('*.txt')  , optional: true, emit: txt
+    tuple val(meta), path('*.daa')  , optional: true, emit: daa
+    tuple val(meta), path('*.sam')  , optional: true, emit: sam
+    tuple val(meta), path('*.tsv')  , optional: true, emit: tsv
+    tuple val(meta), path('*.paf')  , optional: true, emit: paf
+    tuple val(meta), path("*.log")                  , emit: log
+    path "versions.yml"                               , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
-    def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def columns = blast_columns ? "${blast_columns}" : ''
+    switch ( out_ext ) {
+        case "blast": outfmt = 0; break
+        case "xml": outfmt = 5; break
+        case "txt": outfmt = 6; break
+        case "daa": outfmt = 100; break
+        case "sam": outfmt = 101; break
+        case "tsv": outfmt = 102; break
+        case "paf": outfmt = 103; break
+        default:
+            outfmt = '6';
+            out_ext = 'txt';
+            log.warn("Unknown output file format provided (${out_ext}): selecting DIAMOND default of tabular BLAST output (txt)");
+            break
+    }
     """
     DB=`find -L ./ -name "*.dmnd" | sed 's/.dmnd//'`
 
@@ -38,12 +53,16 @@ process DIAMOND_BLASTX {
         --threads $task.cpus \\
         --db \$DB \\
         --query $fasta \\
-        $options.args \\
-        --out ${prefix}.txt
+        --outfmt ${outfmt} ${columns} \\
+        $args \\
+        --out ${prefix}.${out_ext} \\
+        --log
+
+    mv diamond.log ${prefix}.log
 
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(diamond --version 2>&1 | tail -n 1 | sed 's/^diamond version //')
+    "${task.process}":
+        diamond: \$(diamond --version 2>&1 | tail -n 1 | sed 's/^diamond version //')
     END_VERSIONS
     """
 }

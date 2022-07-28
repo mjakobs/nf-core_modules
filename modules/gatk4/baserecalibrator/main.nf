@@ -1,59 +1,52 @@
-// Import generic module functions
-include { initOptions; saveFiles; getSoftwareName; getProcessName } from './functions'
-
-params.options = [:]
-options        = initOptions(params.options)
-
 process GATK4_BASERECALIBRATOR {
     tag "$meta.id"
     label 'process_low'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    conda (params.enable_conda ? "bioconda::gatk4=4.2.0.0" : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/gatk4:4.2.0.0--0"
-    } else {
-        container "quay.io/biocontainers/gatk4:4.2.0.0--0"
-    }
+    conda (params.enable_conda ? "bioconda::gatk4=4.2.6.1" : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/gatk4:4.2.6.1--hdfd78af_0':
+        'quay.io/biocontainers/gatk4:4.2.6.1--hdfd78af_0' }"
 
     input:
-    tuple val(meta), path(input), path(input_index)
-    path fasta
-    path fastaidx
-    path dict
-    path intervalsBed
-    path knownSites
-    path knownSites_tbi
+    tuple val(meta), path(input), path(input_index), path(intervals)
+    path  fasta
+    path  fai
+    path  dict
+    path  known_sites
+    path  known_sites_tbi
 
     output:
     tuple val(meta), path("*.table"), emit: table
-    path "versions.yml"           , emit: versions
+    path "versions.yml"             , emit: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
-    def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
-    def intervalsCommand = intervalsBed ? "-L ${intervalsBed}" : ""
-    def sitesCommand = knownSites.collect{"--known-sites ${it}"}.join(' ')
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def interval_command = intervals ? "--intervals $intervals" : ""
+    def sites_command = known_sites.collect{"--known-sites $it"}.join(' ')
 
+    def avail_mem = 3
     if (!task.memory) {
         log.info '[GATK BaseRecalibrator] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'
     } else {
         avail_mem = task.memory.giga
     }
     """
-    gatk BaseRecalibrator  \
-        -R $fasta \
-        -I $input \
-        $sitesCommand \
-        $intervalsCommand \
-        --tmp-dir . \
-        $options.args \
-        -O ${prefix}.table
+    gatk --java-options "-Xmx${avail_mem}g" BaseRecalibrator  \\
+        --input $input \\
+        --output ${prefix}.table \\
+        --reference $fasta \\
+        $interval_command \\
+        $sites_command \\
+        --tmp-dir . \\
+        $args
 
     cat <<-END_VERSIONS > versions.yml
-    ${getProcessName(task.process)}:
-        ${getSoftwareName(task.process)}: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
+    "${task.process}":
+        gatk4: \$(echo \$(gatk --version 2>&1) | sed 's/^.*(GATK) v//; s/ .*\$//')
     END_VERSIONS
     """
 }
