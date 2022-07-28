@@ -6,7 +6,7 @@
     - "fastqsplit"
     #
   files:
-    - path: "output/fastqsplit/test.bam"
+    - path: "output/fastqsplit/test.fastqc"
       md5sum: e667c7caad0bc4b7ac383fd023c654fc
     - path: output/fastqsplit/versions.yml
       md5sum: a01fe51bc4c6a3a6226fbf77b2c7cf3b
