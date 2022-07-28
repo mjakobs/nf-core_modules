@@ -62,7 +62,7 @@ process FASTQSPLIT {
     // TODO nf-core: Please replace the example samtools command below with your module's command
     // TODO nf-core: Please indent the command appropriately (4 spaces!!) to help with readability ;)
     """
-    ${prefix}.fastqc.gz
+    fastqsplit ${prefix}.fastqc.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
