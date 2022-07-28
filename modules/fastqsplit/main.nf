@@ -21,6 +21,8 @@ include { initOptions; saveFiles; getSoftwareName; getProcessName } from './func
 params.options = [:]
 options        = initOptions(params.options)
 
+def VERSION='0.1' // Version info not available from tool
+
 process FASTQSPLIT {
     tag "$meta.id"
     label 'process_low'
@@ -60,7 +62,11 @@ process FASTQSPLIT {
     // TODO nf-core: Please replace the example samtools command below with your module's command
     // TODO nf-core: Please indent the command appropriately (4 spaces!!) to help with readability ;)
     """
-    singularity run fastqsplit.sif \\
-        ${prefix}.fastqc.gz
+    ${prefix}.fastqc.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        fastqsplit: $VERSION
+    END_VERSIONS
     """
 }
