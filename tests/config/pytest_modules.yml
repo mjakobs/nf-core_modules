@@ -154,6 +154,14 @@ bedtools/subtract:
   - modules/bedtools/subtract/**
   - tests/modules/bedtools/subtract/**
 
+biobambam2/bamcat:
+  - modules/biobambam2/bamcat/**
+  - tests/modules/biobambam2/bamcat/**
+
+biobambam2/fastqtobam:
+  - modules/biobambam2/fastqtobam/**
+  - tests/modules/biobambam2/fastqtobam/**
+
 bismark/align:
   - modules/bismark/align/**
   - modules/bismark/genomepreparation/**
@@ -261,6 +269,18 @@ cat/fastq:
 cellranger/mkref:
   - modules/cellranger/mkref/**
   - tests/modules/cellranger/mkref/**
+
+cgpmap:
+  - modules/cgpmap/**
+  - tests/modules/cgpmap/**
+
+cgpngsqc:
+  - modules/cgpngsqc/**
+  - tests/modules/cgpngsqc/**
+
+cgpwgs:
+  - modules/cgpwgs/**
+  - tests/modules/cgpwgs/**
 
 checkm/lineagewf:
   - modules/checkm/lineagewf/**
@@ -381,6 +401,10 @@ fastp:
 fastqc:
   - modules/fastqc/**
   - tests/modules/fastqc/**
+
+fastqsplit:
+  - modules/fastqsplit/**
+  - tests/modules/fastqsplit/**
 
 fasttree:
   - modules/fasttree/**

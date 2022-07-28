@@ -1,0 +1,10 @@
+## TODO nf-core: Please run the following command to build this file:
+#                nf-core modules create-test-yml biobambam2/fastqtobam
+- name: biobambam2 fastqtobam
+  command: nextflow run ./tests/modules/biobambam2/fastqtobam -entry test_biobambam2_fastqtobam -c tests/config/nextflow.config
+  tags:
+    - biobambam2
+    - biobambam2/fastqtobam
+  files:
+    - path: output/biobambam2/test.bam
+      md5sum: e667c7caad0bc4b7ac383fd023c654fc
