@@ -45,7 +45,7 @@ process FASTQSPLIT {
 
     """
     fastqsplit \\
-        ${prefix}.fastqc.gz
+        ${prefix}.fastq.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
