@@ -44,7 +44,7 @@ process FASTQSPLIT {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    fastqsplit \\
+    fastqsplit \
         ${prefix}.fastq.gz
 
     cat <<-END_VERSIONS > versions.yml
